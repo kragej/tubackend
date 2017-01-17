@@ -4,6 +4,7 @@ machine:
 
 dependencies:
   post:
+    - echo $AWS_ACCOUNT_ID
     - docker build -t $AWS_ACCOUNT_ID.dkr.ecr.us-west-2.amazonaws.com/tyrantrep:$CIRCLE_SHA1 .
 
 test:
