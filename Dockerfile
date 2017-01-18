@@ -1,8 +1,9 @@
-# Building on top of Ubuntu 14.04. The best distro around.
-FROM ubuntu:14.04
+FROM bellkev/uwsgi-base:stable
 
-RUN mkdir /opt/tubackend
-COPY . /opt/tubackend
-EXPOSE 8080
+ADD . /opt/hello
 
-ENTRYPOINT ["/opt/tubackend"]
+RUN pip install -r /opt/hello/requirements.txt
+
+EXPOSE 8001
+
+CMD uwsgi /opt/hello/hello.ini
