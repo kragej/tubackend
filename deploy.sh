@@ -28,7 +28,7 @@ deploy_cluster() {
                        $JQ ".services[0].deployments | .[] | select(.taskDefinition != \"$revision\") | .taskDefinition"); then
             echo "Waiting for stale deployments:"
             echo "$stale"
-            $(aws ecs deregister-task-definition --task-definition $stale)
+            #$(aws ecs deregister-task-definition --task-definition $stale)
             sleep 5
         else
             echo "Deployed!"
@@ -42,8 +42,8 @@ deploy_cluster() {
 make_task_def(){
 	task_template='[
 		{
-			"name": "tubackend",
-			"image": "%s.dkr.ecr.us-west-2.amazonaws.com/tubackend:%s",
+			"name": "tyrantrep",
+			"image": "%s.dkr.ecr.us-west-2.amazonaws.com/tyrantrep:%s",
 			"essential": true,
 			"memory": 200,
 			"cpu": 10,
