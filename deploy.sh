@@ -28,6 +28,7 @@ deploy_cluster() {
                        $JQ ".services[0].deployments | .[] | select(.taskDefinition != \"$revision\") | .taskDefinition"); then
             echo "Waiting for stale deployments:"
             echo "$stale"
+            $(aws ecs deregister-task-definition --task-definition $stale)
             sleep 5
         else
             echo "Deployed!"
