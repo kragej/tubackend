@@ -1,75 +1,21 @@
 #!/usr/bin/env bash
 
-set -e
-set -u
-set -o pipefail
-
 # more bash-friendly output for jq
 JQ="jq --raw-output --exit-status"
 
-deploy_image() {
-
-    aws ecr get-login
-    docker tag tyrantimage $AWS_ACCOUNT_ID.dkr.us-west-2.amazonaws.com/tyrantrep
-
-    docker push $AWS_ACCOUNT_ID.dkr.us-west-2.amazonaws.com/tyrantrep
-}
-
-# reads $CIRCLE_SHA1, $host_port
-# sets $task_def
-make_task_def() {
-
-    task_template='[
-	{
-	    "name": "uwsgi",
-	    "image": "%s.dkr.ecr.us-west-2.amazonaws.com/tyrantrep:%s",
-	    "essential": true,
-	    "memory": 200,
-	    "cpu": 10
-	},
-	{
-	    "name": "nginx",
-	    "links": [
-		"uwsgi"
-	    ],
-	    "image": "bellkev/nginx-base:stable",
-	    "portMappings": [
-		{
-		    "containerPort": 8000,
-		    "hostPort": %s
-		}
-	    ],
-	    "cpu": 10,
-	    "memory": 200,
-	    "essential": true
-	}
-    ]'
-
-    task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $CIRCLE_SHA1 $host_port)
-
-}
-
-# reads $family
-# sets $revision
-register_definition() {
-
-    if revision=$(aws ecs register-task-definition --container-definitions "$task_def" --family $family | $JQ '.taskDefinition.taskDefinitionArn'); then
-        echo "Revision: $revision"
-    else
-        echo "Failed to register task definition"
-        return 1
-    fi
-
+configure_aws_cli(){
+	aws --version
+	aws configure set default.region us-west-2
+	aws configure set default.output json
 }
 
 deploy_cluster() {
 
-    host_port=80
-    family="circle-ecs-cluster"
+    family="sample-webapp-task-family"
 
     make_task_def
     register_definition
-    if [[ $(aws ecs update-service --cluster circle-ecs --service circle-ecs-service --task-definition $revision | \
+    if [[ $(aws ecs update-service --cluster sample-webapp-cluster --service sample-webapp-service --task-definition $revision | \
                    $JQ '.service.taskDefinition') != $revision ]]; then
         echo "Error updating service."
         return 1
@@ -78,7 +24,7 @@ deploy_cluster() {
     # wait for older revisions to disappear
     # not really necessary, but nice for demos
     for attempt in {1..30}; do
-        if stale=$(aws ecs describe-services --cluster circle-ecs --services circle-ecs-service | \
+        if stale=$(aws ecs describe-services --cluster sample-webapp-cluster --services sample-webapp-service | \
                        $JQ ".services[0].deployments | .[] | select(.taskDefinition != \"$revision\") | .taskDefinition"); then
             echo "Waiting for stale deployments:"
             echo "$stale"
@@ -92,5 +38,42 @@ deploy_cluster() {
     return 1
 }
 
-deploy_image
+make_task_def(){
+	task_template='[
+		{
+			"name": "tyrantrep",
+			"image": "%s.dkr.ecr.us-west-2.amazonaws.com/tyrantrep:%s",
+			"essential": true,
+			"memory": 200,
+			"cpu": 10,
+			"portMappings": [
+				{
+					"containerPort": 8080,
+					"hostPort": 80
+				}
+			]
+		}
+	]'
+	
+	task_def=$(printf "$task_template" $AWS_ACCOUNT_ID $CIRCLE_SHA1)
+}
+
+push_ecr_image(){
+	eval $(aws ecr get-login --region us-west-2)
+	docker push $AWS_ACCOUNT_ID.dkr.ecr.us-west-2.amazonaws.com/tyrantrep:$CIRCLE_SHA1
+}
+
+register_definition() {
+
+    if revision=$(aws ecs register-task-definition --container-definitions "$task_def" --family $family | $JQ '.taskDefinition.taskDefinitionArn'); then
+        echo "Revision: $revision"
+    else
+        echo "Failed to register task definition"
+        return 1
+    fi
+
+}
+
+configure_aws_cli
+push_ecr_image
 deploy_cluster
