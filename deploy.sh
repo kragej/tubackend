@@ -11,7 +11,7 @@ configure_aws_cli(){
 
 deploy_cluster() {
 
-    family="sample-webapp-task-family"
+    family="tubackend-task-family"
 
     make_task_def
     register_definition
